@@ -1,8 +1,5 @@
-# EchoSend GUI (Tauri + Rust)
-
+# EchoSend Tauri
 EchoSend 的桌面图形客户端，基于 Tauri 2 + Rust 后端 + 原生 WebView 前端实现。
-
-当前版本已从旧版 Python/tkinter 方案迁移到 Tauri 技术栈，支持 Windows 开发与打包发布。
 
 ## 功能概览
 
@@ -113,7 +110,3 @@ npm run tauri:build
 - kernel 未找到
   - 将 kernel 可执行文件放到应用可执行文件同目录，或确保 PATH 可访问。
 
-## 说明
-
-- 本项目主实现已是 Tauri 版本。
-- 根目录中的旧 Python 文件用于历史兼容参考，不是当前主构建链路。
