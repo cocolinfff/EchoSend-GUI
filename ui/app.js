@@ -15,6 +15,8 @@ const state = {
   refreshSeconds: 3,
   fileMap: new Map(),
   downloadStats: new Map(),
+  daemonLogs: [],
+  logFilterHideSync: false,
   updateInfo: null,
   updateChecking: false,
   contextFile: null,
@@ -183,6 +185,18 @@ function parseDownloadStats(logs) {
   return stats;
 }
 
+function hasSyncTag(line) {
+  const text = String(line || "").replace(/\x1b\[[0-9;]*m/g, "");
+  return /\[sync\]/i.test(text);
+}
+
+function renderDaemonLog() {
+  const logs = state.logFilterHideSync
+    ? state.daemonLogs.filter((line) => !hasSyncTag(line))
+    : state.daemonLogs;
+  $("daemonLog").textContent = logs.join("\n");
+}
+
 function hideFileContextMenu() {
   const menu = $("fileContextMenu");
   if (!menu) return;
@@ -299,9 +313,10 @@ async function refreshData() {
       invoke("get_daemon_logs", { limit: 200 }),
     ]);
     state.downloadStats = parseDownloadStats(logs || []);
+    state.daemonLogs = logs || [];
     renderHistory(history);
     $("peerStatus").textContent = `peers: ${peers ?? "-"}`;
-    $("daemonLog").textContent = (logs || []).join("\n");
+    renderDaemonLog();
   } catch (err) {
     console.error(err);
   }
@@ -425,6 +440,11 @@ function bindActions() {
   });
 
   $("btnRefresh").addEventListener("click", refreshData);
+
+  $("logFilterSync").addEventListener("change", (e) => {
+    state.logFilterHideSync = Boolean(e.target.checked);
+    renderDaemonLog();
+  });
 
   $("btnSendMessage").addEventListener("click", async () => {
     const text = $("messageInput").value.trim();

@@ -295,6 +295,11 @@ input[type="file"] {
   font: 12px/1.4 Consolas, "Courier New", monospace;
 }
 
+.log-filter {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
 .btn {
   border: 1px solid var(--primary);
   background: linear-gradient(180deg, #1b7dd2, #0f6cbd);
