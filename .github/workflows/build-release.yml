@@ -73,10 +73,7 @@ jobs:
           elif command -v convert &>/dev/null; then
             convert src-tauri/icons/icon.ico src-tauri/icons/icon.png
           else
-            python3 -c "
-from PIL import Image
-img = Image.open('src-tauri/icons/icon.ico')
-img.save('src-tauri/icons/icon.png', 'PNG')"
+            python3 -c "from PIL import Image;img = Image.open('src-tauri/icons/icon.ico');img.save('src-tauri/icons/icon.png', 'PNG')"
           fi
 
       - name: Install Linux build deps
