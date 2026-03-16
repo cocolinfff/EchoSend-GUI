@@ -1,0 +1,10 @@
+*.ps1
+*.py
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+dist/
+*.log
+TODO.md
+TAURI-MIGRATION.md
+requirements.txt

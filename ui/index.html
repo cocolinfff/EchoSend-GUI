@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EchoSend</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="title-wrap">
+          <h1>EchoSend</h1>
+          <p id="kernelStatus">Kernel: checking...</p>
+          <p id="updateStatus">Update: checking...</p>
+        </div>
+        <div class="status-wrap">
+          <span id="daemonStatus" class="pill warning">daemon stopped</span>
+          <span id="peerStatus" class="pill">peers: -</span>
+          <button id="btnUpdateKernel" class="btn ghost">Check / Update</button>
+          <button id="btnDaemon" class="btn">Start Daemon</button>
+        </div>
+      </header>
+
+      <main class="main-grid">
+        <section class="panel history-panel">
+          <div class="panel-head">
+            <h2>History</h2>
+            <button id="btnRefresh" class="btn mini">Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Sender</th>
+                  <th>Content</th>
+                  <th>Size</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="historyRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel side-panel">
+          <div class="tabs">
+            <button id="tab-send" class="tab active">Send</button>
+            <button id="tab-settings" class="tab">Settings</button>
+            <button id="tab-log" class="tab">Daemon Log</button>
+          </div>
+
+          <section id="view-send" class="tab-view active">
+            <label for="messageInput">Message</label>
+            <textarea id="messageInput" rows="4" placeholder="input message..."></textarea>
+            <div class="inline-actions">
+              <button id="btnSendMessage" class="btn">Send Message</button>
+            </div>
+
+            <label for="fileInput">Files</label>
+            <input id="fileInput" type="file" multiple />
+            <button id="btnSendFiles" class="btn">Send Selected Files</button>
+
+            <div id="dropZone" class="dropzone">
+              Drag files/folders here to send
+            </div>
+          </section>
+
+          <section id="view-settings" class="tab-view">
+            <h3>Kernel Startup Config</h3>
+            <label for="daemonArgs">Extra daemon args (one per line)</label>
+            <textarea id="daemonArgs" rows="5" placeholder="--listen 0.0.0.0\n--port 3001"></textarea>
+
+            <label class="check">
+              <input id="autoStartDaemon" type="checkbox" />
+              auto start daemon when app launches
+            </label>
+
+            <label class="check">
+              <input id="launchMinimized" type="checkbox" />
+              launch app minimized to tray
+            </label>
+
+            <label class="check">
+              <input id="closeToTray" type="checkbox" />
+              click close button to hide into tray
+            </label>
+
+            <label for="refreshSeconds">Refresh interval (seconds)</label>
+            <input id="refreshSeconds" type="number" min="1" max="60" value="3" />
+
+            <h3>System Integration</h3>
+            <div class="toggle-row">
+              <span>Register autostart</span>
+              <button id="btnToggleAutostart" class="btn mini ghost">Toggle</button>
+            </div>
+            <div class="toggle-row">
+              <span>Register right-click menu (file/folder)</span>
+              <button id="btnToggleContext" class="btn mini ghost">Toggle</button>
+            </div>
+
+            <div class="inline-actions">
+              <button id="btnSaveConfig" class="btn">Save Settings</button>
+              <button id="btnHideTray" class="btn ghost">Hide To Tray</button>
+              <button id="btnQuit" class="btn danger">Quit</button>
+            </div>
+          </section>
+
+          <section id="view-log" class="tab-view">
+            <pre id="daemonLog" class="log"></pre>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

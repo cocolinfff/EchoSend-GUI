@@ -1,0 +1,23 @@
+[package]
+name = "echosend_gui_tauri"
+version = "0.1.0"
+description = "EchoSend GUI rebuilt with Tauri + Rust"
+authors = ["EchoSend-GUI"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+dirs = "6"
+wait-timeout = "0.2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+walkdir = "2"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
