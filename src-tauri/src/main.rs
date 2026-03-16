@@ -5,7 +5,7 @@ use std::{
     env,
     ffi::OsStr,
     fs,
-    io::{BufRead, BufReader, Read, Write},
+    io::{BufRead, BufReader, Read, Write}, 
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
@@ -21,6 +21,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, State, WindowEvent,
 };
+use std::collections::HashMap;
 use wait_timeout::ChildExt;
 use walkdir::WalkDir;
 use zip::write::SimpleFileOptions;
@@ -84,6 +85,7 @@ struct UpdateInfo {
 
 struct AppState {
     daemon: Mutex<Option<Child>>,
+    pull_processes: Mutex<HashMap<String, Child>>,
     logs: Arc<Mutex<VecDeque<String>>>,
     startup: Arc<Mutex<StartupConfig>>,
 }
@@ -92,6 +94,7 @@ impl AppState {
     fn new() -> Self {
         Self {
             daemon: Mutex::new(None),
+            pull_processes: Mutex::new(HashMap::new()),
             logs: Arc::new(Mutex::new(VecDeque::new())),
             startup: Arc::new(Mutex::new(StartupConfig::default())),
         }
@@ -182,8 +185,7 @@ fn find_kernel(app: &AppHandle) -> Option<PathBuf> {
     which("echosend.exe").or_else(|| which("echosend"))
 }
 
-fn run_kernel(app: &AppHandle, args: &[String], timeout_secs: u64) -> Result<String, String> {
-    let kernel = find_kernel(app).ok_or_else(|| "kernel not found".to_string())?;
+fn configure_kernel_command(kernel: PathBuf, args: &[String]) -> Command {
     let mut cmd = Command::new(kernel);
     cmd.args(args)
         .stdout(Stdio::piped())
@@ -195,6 +197,12 @@ fn run_kernel(app: &AppHandle, args: &[String], timeout_secs: u64) -> Result<Str
         cmd.creation_flags(0x08000000);
     }
 
+    cmd
+}
+
+fn run_kernel(app: &AppHandle, args: &[String], timeout_secs: u64) -> Result<String, String> {
+    let kernel = find_kernel(app).ok_or_else(|| "kernel not found".to_string())?;
+    let mut cmd = configure_kernel_command(kernel, args);
     let mut child = cmd.spawn().map_err(|e| format!("spawn failed: {e}"))?;
 
     let timeout = Duration::from_secs(timeout_secs.max(1));
@@ -960,12 +968,93 @@ fn send_files(app: AppHandle, paths: Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
+fn cleanup_pull_processes(state: &AppState) -> Result<(), String> {
+    let mut guard = state
+        .pull_processes
+        .lock()
+        .map_err(|_| "pull lock poisoned".to_string())?;
+
+    let mut finished = Vec::new();
+    for (hash, child) in guard.iter_mut() {
+        match child.try_wait() {
+            Ok(Some(_)) | Err(_) => finished.push(hash.clone()),
+            Ok(None) => {}
+        }
+    }
+
+    for hash in finished {
+        guard.remove(&hash);
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
-fn pull_file(app: AppHandle, file_hash: String) -> Result<(), String> {
-    if file_hash.trim().is_empty() {
+fn pull_file(app: AppHandle, state: State<'_, AppState>, file_hash: String) -> Result<(), String> {
+    let file_hash = file_hash.trim().to_string();
+    if file_hash.is_empty() {
         return Ok(());
     }
-    run_kernel(&app, &["--pull".to_string(), file_hash], 20).map(|_| ())
+
+    cleanup_pull_processes(state.inner())?;
+
+    {
+        let pulls = state
+            .pull_processes
+            .lock()
+            .map_err(|_| "pull lock poisoned".to_string())?;
+        if pulls.contains_key(&file_hash) {
+            return Err("pull already running for this file".to_string());
+        }
+    }
+
+    let kernel = find_kernel(&app).ok_or_else(|| "kernel not found".to_string())?;
+    let args = vec!["--pull".to_string(), file_hash.clone()];
+    let mut cmd = configure_kernel_command(kernel, &args);
+    cmd.stdin(Stdio::null());
+
+    let child = cmd.spawn().map_err(|e| format!("start pull failed: {e}"))?;
+    state
+        .pull_processes
+        .lock()
+        .map_err(|_| "pull lock poisoned".to_string())?
+        .insert(file_hash.clone(), child);
+
+    push_log(&state.logs, format!("[GUI] pull start requested: {file_hash}"));
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_pull(state: State<'_, AppState>, file_hash: String) -> Result<String, String> {
+    cleanup_pull_processes(state.inner())?;
+
+    let mut pulls = state
+        .pull_processes
+        .lock()
+        .map_err(|_| "pull lock poisoned".to_string())?;
+
+    if pulls.is_empty() {
+        return Ok("no running pull process".to_string());
+    }
+
+    let target_hash = if file_hash.trim().is_empty() {
+        pulls
+            .keys()
+            .next()
+            .cloned()
+            .ok_or_else(|| "no running pull process".to_string())?
+    } else {
+        file_hash.trim().to_string()
+    };
+
+    if let Some(mut child) = pulls.remove(&target_hash) {
+        let _ = child.kill();
+        let _ = child.wait();
+        push_log(&state.logs, format!("[GUI] pull cancelled: {target_hash}"));
+        Ok(format!("pull cancelled: {target_hash}"))
+    } else {
+        Ok(format!("pull not running: {target_hash}"))
+    }
 }
 
 #[tauri::command]
@@ -1209,6 +1298,7 @@ fn main() {
             send_message,
             send_files,
             pull_file,
+            cancel_pull,
             open_path,
             reveal_in_folder,
             get_startup_config,

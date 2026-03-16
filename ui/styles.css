@@ -181,6 +181,12 @@ tbody tr:hover {
   border-color: #f6b8bd;
 }
 
+.sub-status {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--subtle);
+}
+
 .side-panel {
   display: grid;
   grid-template-rows: auto 1fr;
@@ -317,6 +323,42 @@ input[type="file"] {
   padding: 5px 9px;
   border-radius: 8px;
   font-size: 12px;
+}
+
+.ctx-menu {
+  position: fixed;
+  z-index: 2000;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  box-shadow: var(--shadow);
+  display: none;
+}
+
+.ctx-menu.show {
+  display: block;
+}
+
+.ctx-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ctx-item:hover {
+  background: #f2f7fc;
+}
+
+.ctx-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (max-width: 1080px) {

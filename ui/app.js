@@ -14,8 +14,10 @@ const state = {
   contextMenuEnabled: false,
   refreshSeconds: 3,
   fileMap: new Map(),
+  downloadStats: new Map(),
   updateInfo: null,
   updateChecking: false,
+  contextFile: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -124,6 +126,86 @@ function statusBadge(status) {
   return `<span class="badge ${cfg.cls}">${cfg.label}</span>`;
 }
 
+function normalizeName(name) {
+  return String(name || "").trim().toLowerCase();
+}
+
+function parseDownloadStats(logs) {
+  const stats = new Map();
+
+  for (const lineRaw of logs || []) {
+    const line = String(lineRaw || "").trim();
+    if (!line) continue;
+
+    let m = line.match(/^\[sync\]\s+downloading\s+(.+?)\s+from\s+/i);
+    if (m) {
+      const key = normalizeName(m[1]);
+      stats.set(key, {
+        state: "DOWNLOADING",
+        detail: "starting...",
+      });
+      continue;
+    }
+
+    m = line.match(/^\[tcp\]\s+(.+?)\s+progress\s+([0-9.]+)%\s+\(([^)]+)\)\s+(.+)$/i);
+    if (m) {
+      const key = normalizeName(m[1]);
+      stats.set(key, {
+        state: "DOWNLOADING",
+        percent: m[2],
+        transferred: m[3],
+        speed: m[4],
+        detail: `${m[2]}% | ${m[4]}`,
+      });
+      continue;
+    }
+
+    m = line.match(/^\[tcp\]\s+downloaded\s+(.+?)\s+\(/i);
+    if (m) {
+      const key = normalizeName(m[1]);
+      stats.set(key, {
+        state: "COMPLETE",
+        detail: "done",
+      });
+      continue;
+    }
+
+    m = line.match(/^\[sync\].*?(?:giving up on|failed for)\s+(.+)$/i);
+    if (m) {
+      const key = normalizeName(m[1]);
+      stats.set(key, {
+        state: "FAILED",
+        detail: "failed",
+      });
+    }
+  }
+
+  return stats;
+}
+
+function hideFileContextMenu() {
+  const menu = $("fileContextMenu");
+  if (!menu) return;
+  menu.classList.remove("show");
+}
+
+function showFileContextMenu(item, x, y) {
+  const menu = $("fileContextMenu");
+  if (!menu) return;
+
+  state.contextFile = item;
+
+  const cancelBtn = $("ctxCancelDownload");
+  const status = String(item.status || "").toUpperCase();
+  cancelBtn.disabled = status !== "DOWNLOADING";
+
+  const maxX = window.innerWidth - 190;
+  const maxY = window.innerHeight - 120;
+  menu.style.left = `${Math.max(8, Math.min(x, maxX))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, maxY))}px`;
+  menu.classList.add("show");
+}
+
 function renderHistory(data) {
   const rowsEl = $("historyRows");
   rowsEl.innerHTML = "";
@@ -141,6 +223,11 @@ function renderHistory(data) {
       content = item.file_name || "-";
       size = fmtSize(item.file_size);
       statusHtml = statusBadge(item.status || "");
+
+      const stat = state.downloadStats.get(normalizeName(item.file_name || ""));
+      if (stat && stat.detail) {
+        statusHtml += `<div class="sub-status">${stat.detail}</div>`;
+      }
     }
 
     const action = rowAction(item);
@@ -155,6 +242,12 @@ function renderHistory(data) {
     `;
 
     tr.querySelector("button").addEventListener("click", () => onRowAction(item));
+    if (item._type === "file") {
+      tr.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        showFileContextMenu(item, e.clientX, e.clientY);
+      });
+    }
     rowsEl.appendChild(tr);
 
     if (item._type === "file" && item.file_hash) {
@@ -205,6 +298,7 @@ async function refreshData() {
       invoke("get_peers"),
       invoke("get_daemon_logs", { limit: 200 }),
     ]);
+    state.downloadStats = parseDownloadStats(logs || []);
     renderHistory(history);
     $("peerStatus").textContent = `peers: ${peers ?? "-"}`;
     $("daemonLog").textContent = (logs || []).join("\n");
@@ -273,6 +367,23 @@ function setupDropzone() {
 }
 
 function bindActions() {
+  document.addEventListener("click", () => hideFileContextMenu());
+  $("fileContextMenu").addEventListener("click", (e) => e.stopPropagation());
+  $("ctxCancelDownload").addEventListener("click", async () => {
+    hideFileContextMenu();
+    const file = state.contextFile;
+    if (!file || !file.file_hash) {
+      return;
+    }
+    try {
+      const msg = await invoke("cancel_pull", { fileHash: file.file_hash });
+      window.alert(msg || "pull cancelled");
+      await refreshData();
+    } catch (err) {
+      showError(err);
+    }
+  });
+
   $("btnUpdateKernel").addEventListener("click", async () => {
     try {
       await checkUpdateInfo();
